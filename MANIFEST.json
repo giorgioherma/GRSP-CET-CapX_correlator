@@ -1,6 +1,6 @@
 {
   "name": "GRSP Correlator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "standalone-postprocessor",
   "runtime": "Python 3.10+ standard library",
   "inputs": {
@@ -31,5 +31,12 @@
     "capx_grsp_frame_offset": 2,
     "frametime_correlation": 0.972681,
     "median_abs_frame_duration_delta_ms": 0.5878
+  },
+  "startup": {
+    "double_click": "native file picker; fallback console path prompt",
+    "drag_drop": "supported",
+    "cli": "supported",
+    "auto_open_report": true,
+    "hold_console_on_interactive_error": true
   }
 }

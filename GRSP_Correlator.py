@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GRSP Correlator v0.1.0
+GRSP Correlator v0.1.1
 
 Standalone post-processing correlator for:
   - GRSP 0.5.x (G-REDscript Profiler)
@@ -36,7 +36,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 APP_NAME = "GRSP Correlator"
 
 
@@ -1108,8 +1108,82 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
+def _wait_for_enter(message: str = "Press Enter to close...") -> None:
+    try:
+        input(f"\n{message}")
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+
+def _interactive_select_input() -> str | None:
+    print(f"{APP_NAME} v{VERSION}")
+    print("Select a combined GRSP + CET + CapFrameX capture ZIP or folder.")
+    print("A file picker should open now.")
+    print()
+
+    selected = ""
+    root = None
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            root.attributes("-topmost", True)
+        except Exception:
+            pass
+
+        selected = filedialog.askopenfilename(
+            title="GRSP Correlator - Select combined capture ZIP",
+            filetypes=[
+                ("Combined capture ZIP", "*.zip"),
+                ("All files", "*.*"),
+            ],
+        )
+
+        # A normal file picker cannot select both files and folders at once.
+        # If the ZIP dialog is cancelled, offer a folder picker before falling
+        # back to a console path prompt.
+        if not selected:
+            selected = filedialog.askdirectory(
+                title="GRSP Correlator - Or select a combined capture folder"
+            )
+    except Exception as e:
+        print(f"File picker unavailable ({e}).")
+    finally:
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+
+    if selected:
+        return selected
+
+    try:
+        typed = input("Paste the combined capture ZIP/folder path (blank = cancel): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        return None
+
+    if len(typed) >= 2 and typed[0] == typed[-1] and typed[0] in ('"', "'"):
+        typed = typed[1:-1]
+    return typed or None
+
+
 def main(argv: list[str] | None = None) -> int:
-    ns = parse_args(argv or sys.argv[1:])
+    args = list(sys.argv[1:] if argv is None else argv)
+    interactive = len(args) == 0
+
+    if interactive:
+        selected = _interactive_select_input()
+        if not selected:
+            print("No input selected.")
+            _wait_for_enter()
+            return 0
+        args = [selected, "--open"]
+
+    ns = parse_args(args)
     inp = pathlib.Path(ns.input).expanduser().resolve()
     if ns.output:
         out = pathlib.Path(ns.output).expanduser().resolve()
@@ -1118,24 +1192,40 @@ def main(argv: list[str] | None = None) -> int:
             out = inp.with_suffix("").parent / (safe_name(inp.stem) + "_Combined_Report")
         else:
             out = inp / "GRSP_Combined_Report"
+
+    print(f"Input:  {inp}")
+    print(f"Output: {out}")
+    print("Correlating captures...")
+
     try:
         result = run(inp, out)
     except Exception as e:
+        print()
         print(f"ERROR: {e}", file=sys.stderr)
         if os.environ.get("GRSP_CORRELATOR_DEBUG"):
             raise
+        if interactive:
+            _wait_for_enter("Correlation failed. Press Enter to close...")
         return 1
+
+    print()
     print(f"{APP_NAME} v{VERSION}")
-    print(f"Report: {result['report']}")
-    print(f"Frames: {result['frames']}")
+    print("Correlation complete.")
+    print(f"Report:   {result['report']}")
+    print(f"Frames:   {result['frames']}")
     print(f"Timeline: {result['timeline']}")
-    print(f"Hitches: {result['hitches']}")
-    print(f"Status: {result['status']}")
+    print(f"Hitches:  {result['hitches']}")
+    print(f"Status:   {result['status']}")
+
     if ns.open_report:
         try:
             webbrowser.open(result["report"].as_uri())
-        except Exception:
-            pass
+            print("Opening the combined HTML report...")
+        except Exception as e:
+            print(f"Could not open the report automatically: {e}")
+
+    if interactive:
+        _wait_for_enter()
     return 0
 
 

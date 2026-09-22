@@ -61,6 +61,14 @@ MyCapture.zip
     CapFrameX-Cyberpunk2077.exe-....json
 ```
 
+## Quick start on Windows
+
+For the packaged `GRSP-Correlator.exe`, just **double-click the EXE**.
+
+v0.1.1 opens a native file picker. Select the combined capture ZIP containing the GRSP, CET and CapFrameX results. If you cancel the ZIP picker, a folder picker is offered. The correlator then generates the combined report beside the input and opens `GRSP_Combined_Report.html` automatically.
+
+You can also drag a combined capture ZIP onto the EXE, or use the command line as before.
+
 ## Run from Python
 
 Python 3.10+ is sufficient and no third-party packages are required.
@@ -138,7 +146,7 @@ The included GitHub Actions workflow builds a one-file Windows console executabl
 
 ## Compatibility target
 
-v0.1.0 was built and validated against:
+v0.1.1 keeps the v0.1.0 correlation engine validated against:
 
 - GRSP 0.5.0 Public Preview
 - CET Runtime Profiler v3.0.0-alpha6b adaptive / 0-Engine core mode

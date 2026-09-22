@@ -5,7 +5,23 @@ on:
   push:
     paths:
       - 'GRSP_Correlator.py'
+      - 'Run_Correlator.bat'
       - 'README.md'
+      - 'OUTPUT_SCHEMA.md'
+      - 'VALIDATION.md'
+      - 'RELEASE_NOTES.md'
+      - 'MANIFEST.json'
+      - 'VERSION.txt'
+      - '.github/workflows/build-correlator.yml'
+  pull_request:
+    paths:
+      - 'GRSP_Correlator.py'
+      - 'Run_Correlator.bat'
+      - 'README.md'
+      - 'OUTPUT_SCHEMA.md'
+      - 'VALIDATION.md'
+      - 'RELEASE_NOTES.md'
+      - 'MANIFEST.json'
       - 'VERSION.txt'
       - '.github/workflows/build-correlator.yml'
 
@@ -32,11 +48,13 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path stage | Out-Null
           Copy-Item dist\GRSP-Correlator.exe stage\GRSP-Correlator.exe
+          Copy-Item Run_Correlator.bat stage\Run_Correlator.bat
           Copy-Item README.md stage\README.md
+          Copy-Item OUTPUT_SCHEMA.md stage\OUTPUT_SCHEMA.md
           Copy-Item VERSION.txt stage\VERSION.txt
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GRSP-Correlator-0.1.0-Windows-x64
+          name: GRSP-Correlator-0.1.1-Windows-x64
           path: stage

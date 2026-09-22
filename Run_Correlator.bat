@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 set "INPUT=%~1"
 if "%INPUT%"=="" (
-  echo GRSP Correlator v0.1.1
+  echo GRSP Correlator v0.1.2
   echo.
   set /p "INPUT=Paste the combined capture ZIP or folder path: "
 )

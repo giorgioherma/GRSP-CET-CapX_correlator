@@ -1,3 +1,18 @@
+# GRSP Correlator 0.1.2
+
+Persistent-output visibility and AI-analysis export.
+
+## Changed
+
+- makes the saved output folder explicit and opens it in Explorer for interactive runs
+- keeps the existing local `GRSP_Combined_Report.html`
+- adds `GRSP_Analysis.json` for structured machine/AI analysis
+- adds `GRSP_AI_Analysis.md` for compact AI-friendly review
+- adds `GRSP_Analysis_Package.zip` containing all combined analysis outputs
+- no correlation, synchronization, evidence classification, or profiler measurement logic changed
+
+---
+
 # GRSP Correlator 0.1.1
 
 Usability fix for direct launching.

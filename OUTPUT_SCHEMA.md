@@ -36,3 +36,17 @@ Subset of `GRSP_Combined_Frames.csv` where CapFrameX frametime is at least 33.3 
 ## `GRSP_Correlator_Status.txt`
 
 Human-readable discovery, sync, health and output diagnostics. This is the first file to inspect if the HTML report reports `FAIR` or `POOR` synchronization.
+
+## AI / machine-readable outputs
+
+### `GRSP_Analysis.json`
+
+Compact structured summary containing synchronization quality, capture health, performance statistics, top REDscript owners, top CET owners, and the 100 largest hitches.
+
+### `GRSP_AI_Analysis.md`
+
+Compact Markdown version intended for human review or attaching directly to an AI assistant. It contains interpretation rules, synchronization and health data, top owners, and the 50 largest hitches.
+
+### `GRSP_Analysis_Package.zip`
+
+Portable package containing the HTML report, all combined CSV outputs, the AI Markdown/JSON files, and status text.

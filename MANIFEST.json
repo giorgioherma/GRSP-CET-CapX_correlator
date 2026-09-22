@@ -1,6 +1,6 @@
 {
   "name": "GRSP Correlator",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "standalone-postprocessor",
   "runtime": "Python 3.10+ standard library",
   "inputs": {
@@ -13,6 +13,9 @@
     "GRSP_Combined_Frames.csv",
     "GRSP_Combined_Timeline.csv",
     "GRSP_Combined_Hitches.csv",
+    "GRSP_Analysis.json",
+    "GRSP_AI_Analysis.md",
+    "GRSP_Analysis_Package.zip",
     "GRSP_Correlator_Status.txt"
   ],
   "timeline_bucket_ms": 50,
@@ -37,6 +40,7 @@
     "drag_drop": "supported",
     "cli": "supported",
     "auto_open_report": true,
-    "hold_console_on_interactive_error": true
+    "hold_console_on_interactive_error": true,
+    "reveal_output_folder": true
   }
 }

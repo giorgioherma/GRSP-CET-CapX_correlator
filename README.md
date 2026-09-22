@@ -65,7 +65,7 @@ MyCapture.zip
 
 For the packaged `GRSP-Correlator.exe`, just **double-click the EXE**.
 
-v0.1.1 opens a native file picker. Select the combined capture ZIP containing the GRSP, CET and CapFrameX results. If you cancel the ZIP picker, a folder picker is offered. The correlator then generates the combined report beside the input and opens `GRSP_Combined_Report.html` automatically.
+v0.1.2 opens a native file picker. Select the combined capture ZIP containing the GRSP, CET and CapFrameX results. If you cancel the ZIP picker, a folder picker is offered. The correlator then generates the combined report beside the input and opens `GRSP_Combined_Report.html` automatically.
 
 You can also drag a combined capture ZIP onto the EXE, or use the command line as before.
 
@@ -146,10 +146,23 @@ The included GitHub Actions workflow builds a one-file Windows console executabl
 
 ## Compatibility target
 
-v0.1.1 keeps the v0.1.0 correlation engine validated against:
+v0.1.2 keeps the v0.1.0 correlation engine validated against:
 
 - GRSP 0.5.0 Public Preview
 - CET Runtime Profiler v3.0.0-alpha6b adaptive / 0-Engine core mode
 - CapFrameX 1.8.6.2 JSON
 
 See `VALIDATION.md` for the reference-capture results.
+
+
+## Persistent output and AI analysis
+
+Every run writes a persistent output folder beside the selected input capture. The browser opens the `GRSP_Combined_Report.html` file from that folder; it is not a temporary browser-only report.
+
+v0.1.2 also creates:
+
+- `GRSP_Analysis.json` — compact structured machine-readable analysis.
+- `GRSP_AI_Analysis.md` — compact plain-text/Markdown report intended for attaching to an AI assistant.
+- `GRSP_Analysis_Package.zip` — one portable ZIP containing the HTML, AI files, status and combined CSVs.
+
+Interactive runs also open the saved output folder in Explorer after generation.

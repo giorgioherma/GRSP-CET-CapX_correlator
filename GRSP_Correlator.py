@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GRSP Correlator v0.1.1
+GRSP Correlator v0.1.2
 
 Standalone post-processing correlator for:
   - GRSP 0.5.x (G-REDscript Profiler)
@@ -36,7 +36,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 APP_NAME = "GRSP Correlator"
 
 
@@ -995,6 +995,267 @@ window.addEventListener('resize',resize);resize();
     return html_doc
 
 
+
+def _top_hitch_export_row(r: dict[str, Any]) -> dict[str, Any]:
+    """Compact, stable hitch representation for machine/AI analysis."""
+    return {
+        "time_s": round(fnum(r.get("frame_start_ms")) / 1000.0, 6),
+        "capx_frame_index": inum(r.get("capx_frame_index"), -1),
+        "frametime_ms": round(fnum(r.get("capx_frametime_ms")), 6),
+        "evidence_class": r.get("evidence_class", ""),
+        "grsp_exclusive_ms": round(fnum(r.get("grsp_exclusive_ms")), 6),
+        "grsp_top_owner": r.get("grsp_top_event_owner") or r.get("grsp_bucket_top_owner") or "",
+        "grsp_top_target": r.get("grsp_top_event_target") or "",
+        "grsp_top_event_ms": round(fnum(r.get("grsp_top_event_exclusive_ms")), 6),
+        "cet_exact_mod": r.get("cet_exact_mod", ""),
+        "cet_exact_kind": r.get("cet_exact_kind", ""),
+        "cet_exact_target": r.get("cet_exact_target", ""),
+        "cet_exact_exclusive_ms": round(fnum(r.get("cet_exact_exclusive_ms")), 6),
+        "cet_exact_duration_ms": round(fnum(r.get("cet_exact_duration_ms")), 6),
+        "cet_bucket_observed_ms": round(fnum(r.get("cet_bucket_observed_exclusive_ms")), 6),
+        "scheduler_owner": r.get("scheduler_owner", ""),
+        "scheduler_job": r.get("scheduler_job", ""),
+        "scheduler_duration_ms": round(fnum(r.get("scheduler_duration_ms")), 6),
+    }
+
+
+def write_analysis_exports(
+    out_dir: pathlib.Path,
+    source_label: str,
+    grsp: GRSPData,
+    cet: CETData,
+    capx: CapXData,
+    alignment: Alignment,
+    frames: list[dict[str, Any]],
+    timeline: list[dict[str, Any]],
+    hitches: list[dict[str, Any]],
+) -> tuple[pathlib.Path, pathlib.Path]:
+    """Write compact machine-readable and AI-friendly analysis files."""
+    fts = [fnum(r.get("capx_frametime_ms")) for r in frames]
+    avg_ft = statistics.fmean(fts) if fts else 0.0
+    avg_fps = (1000.0 / avg_ft) if avg_ft > 0 else 0.0
+    p95 = percentile(fts, 0.95)
+    p99 = percentile(fts, 0.99)
+    max_ft = max(fts, default=0.0)
+
+    classes: dict[str, int] = defaultdict(int)
+    for r in hitches:
+        classes[str(r.get("evidence_class", ""))] += 1
+
+    top_grsp = []
+    for r in grsp.by_mod[:30]:
+        top_grsp.append({
+            "rank": r.get("rank"),
+            "owner": r.get("owner", ""),
+            "exclusive_ms_per_sec": round(fnum(r.get("exclusive_ms_per_sec")), 6),
+            "share_pct": round(fnum(r.get("share_pct")), 6),
+            "active_frame_pct": round(fnum(r.get("active_frame_pct")), 6),
+            "max_call_ms": round(fnum(r.get("max_call_ms")), 6),
+            "max_frame_ms": round(fnum(r.get("max_frame_ms")), 6),
+            "spike_count": inum(r.get("spike_count")),
+            "max_spike_ms": round(fnum(r.get("max_spike_ms")), 6),
+            "workload_pattern": r.get("workload", ""),
+            "attribution_note": r.get("note", ""),
+        })
+
+    top_cet = []
+    for i, r in enumerate(cet.by_mod[:30], 1):
+        top_cet.append({
+            "rank": i,
+            "mod": r.get("mod", ""),
+            "exclusive_ms_per_sec": round(fnum(r.get("exclusive_ms_per_sec")), 6),
+            "share_pct": round(fnum(r.get("share_pct")), 6),
+            "measured_one_core_pct": round(fnum(r.get("one_core_pct")), 6),
+            "max_exclusive_ms": round(fnum(r.get("max_exclusive_ms")), 6),
+            "coverage": r.get("coverage", ""),
+        })
+
+    payload = {
+        "schema": "grsp-correlator-analysis-v1",
+        "correlator_version": VERSION,
+        "source": source_label,
+        "interpretation": {
+            "capframex_role": "Rendered frametime evidence.",
+            "grsp_role": "Observed instrumented REDscript work; not guaranteed complete VM self-time.",
+            "cet_role": "Observed CET/Lua runtime work and exact spike spans where available.",
+            "warning": "GRSP and CET measurements are synchronized evidence layers and must not be blindly subtracted from CapFrameX frametime.",
+            "largely_unexplained": "Neither script profiler shows a large signal for the frame; this does not prove the remainder is native/engine work.",
+        },
+        "sync": {
+            "quality": alignment.quality,
+            "grsp_start_unix_ms": grsp.start_epoch_ms,
+            "cet_start_unix_ms": cet.start_epoch_ms,
+            "start_delta_ms": alignment.grsp_cet_start_delta_ms,
+            "grsp_duration_ms": grsp.duration_ms,
+            "cet_duration_ms": cet.duration_ms,
+            "duration_delta_ms": alignment.grsp_cet_duration_delta_ms,
+            "capx_to_grsp_frame_offset": alignment.capx_to_grsp_offset,
+            "frametime_correlation": alignment.correlation,
+            "median_abs_frame_duration_delta_ms": alignment.median_abs_frame_delta_ms,
+            "mean_abs_frame_duration_delta_ms": alignment.mean_abs_frame_delta_ms,
+            "aligned_frame_pairs": alignment.pairs,
+        },
+        "capture_health": {
+            "grsp_frame_quality": grsp.summary.get("frame_quality", ""),
+            "grsp_shard_merge_ok": grsp.summary.get("shard_merge_ok", ""),
+            "grsp_unresolved_static_calls": inum(grsp.summary.get("unresolved_static_calls")),
+            "grsp_dropped_spikes": inum(grsp.summary.get("dropped_spikes")),
+            "grsp_dropped_hot_paths": inum(grsp.summary.get("dropped_hot_paths")),
+            "cet_dropped_timeline_rows": cet.dropped_timeline,
+            "cet_dropped_spikes": cet.dropped_spikes,
+            "cet_dropped_scheduler_spikes": cet.dropped_scheduler_spikes,
+            "cet_dropped_scheduler_bursts": cet.dropped_scheduler_bursts,
+        },
+        "performance_summary": {
+            "capture_duration_s": round(grsp.duration_ms / 1000.0, 6),
+            "aligned_capx_frames": len(frames),
+            "average_fps": round(avg_fps, 6),
+            "average_frametime_ms": round(avg_ft, 6),
+            "p95_frametime_ms": round(p95, 6),
+            "p99_frametime_ms": round(p99, 6),
+            "maximum_frametime_ms": round(max_ft, 6),
+            "frames_ge_33_3_ms": sum(x >= 33.3 for x in fts),
+            "frames_ge_50_ms": sum(x >= 50.0 for x in fts),
+            "frames_ge_100_ms": sum(x >= 100.0 for x in fts),
+            "hitch_evidence_classes": dict(sorted(classes.items())),
+        },
+        "top_redscript_owners": top_grsp,
+        "top_cet_owners": top_cet,
+        "top_hitches": [_top_hitch_export_row(r) for r in hitches[:100]],
+        "files": {
+            "full_frame_data": "GRSP_Combined_Frames.csv",
+            "full_50ms_timeline": "GRSP_Combined_Timeline.csv",
+            "all_hitches_ge_33_3ms": "GRSP_Combined_Hitches.csv",
+            "human_report": "GRSP_Combined_Report.html",
+            "status": "GRSP_Correlator_Status.txt",
+        },
+    }
+
+    json_path = out_dir / "GRSP_Analysis.json"
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    md_lines = [
+        f"# GRSP Combined Analysis — Correlator v{VERSION}",
+        "",
+        "This file is intentionally compact and suitable for attaching to an AI assistant or reviewing as plain text.",
+        "For exhaustive per-frame/per-bucket data, use the CSV files in the same folder.",
+        "",
+        "## Interpretation rules",
+        "",
+        "- CapFrameX is the rendered frametime layer.",
+        "- GRSP is observed instrumented REDscript work, not guaranteed complete VM self-time.",
+        "- CET is observed CET/Lua runtime work; exact spike intervals are preferred for hitch attribution.",
+        "- Do **not** calculate `frametime - GRSP - CET = native`. The measurement domains can overlap and run concurrently.",
+        "- `LARGELY_UNEXPLAINED` means neither script profiler shows a large signal; it does not prove native/engine causation.",
+        "",
+        "## Synchronization",
+        "",
+        f"- Quality: **{alignment.quality}**",
+        f"- GRSP ↔ CET start delta: **{alignment.grsp_cet_start_delta_ms:.3f} ms**",
+        f"- GRSP ↔ CET duration delta: **{alignment.grsp_cet_duration_delta_ms:.3f} ms**",
+        f"- CapFrameX → GRSP frame offset: **{alignment.capx_to_grsp_offset:+d}**",
+        f"- Frametime-sequence correlation: **{alignment.correlation:.6f}**",
+        f"- Median frame-duration delta: **{alignment.median_abs_frame_delta_ms:.6f} ms**",
+        "",
+        "## Capture health",
+        "",
+        f"- GRSP frame quality: **{grsp.summary.get('frame_quality','')}**",
+        f"- GRSP shard merge: **{grsp.summary.get('shard_merge_ok','')}**",
+        f"- GRSP unresolved static calls: **{inum(grsp.summary.get('unresolved_static_calls'))}**",
+        f"- GRSP dropped spikes / hot paths: **{inum(grsp.summary.get('dropped_spikes'))} / {inum(grsp.summary.get('dropped_hot_paths'))}**",
+        f"- CET dropped timeline / spikes: **{cet.dropped_timeline} / {cet.dropped_spikes}**",
+        f"- CET dropped scheduler spikes / bursts: **{cet.dropped_scheduler_spikes} / {cet.dropped_scheduler_bursts}**",
+        "",
+        "## Performance summary",
+        "",
+        f"- Duration: **{grsp.duration_ms/1000.0:.3f} s**",
+        f"- Aligned frames: **{len(frames):,}**",
+        f"- Average: **{avg_fps:.2f} FPS / {avg_ft:.3f} ms**",
+        f"- P95 / P99 frametime: **{p95:.3f} / {p99:.3f} ms**",
+        f"- Maximum frametime: **{max_ft:.3f} ms**",
+        f"- Frames ≥33.3 / 50 / 100 ms: **{sum(x>=33.3 for x in fts)} / {sum(x>=50 for x in fts)} / {sum(x>=100 for x in fts)}**",
+        "",
+        "## Top REDscript owners",
+        "",
+        "| # | Owner | ms/s | Share | Active frames | Max frame | Pattern |",
+        "|---:|---|---:|---:|---:|---:|---|",
+    ]
+    for r in top_grsp[:20]:
+        owner = str(r["owner"]).replace("|", "\\|")
+        pat = str(r["workload_pattern"]).replace("|", "\\|")
+        md_lines.append(
+            f"| {r['rank']} | {owner} | {r['exclusive_ms_per_sec']:.3f} | "
+            f"{r['share_pct']:.2f}% | {r['active_frame_pct']:.1f}% | {r['max_frame_ms']:.3f} | {pat} |"
+        )
+
+    md_lines += [
+        "",
+        "## Top CET/Lua owners",
+        "",
+        "| # | Mod | ms/s | Share | 1-core % | Max event |",
+        "|---:|---|---:|---:|---:|---:|",
+    ]
+    for r in top_cet[:20]:
+        mod = str(r["mod"]).replace("|", "\\|")
+        md_lines.append(
+            f"| {r['rank']} | {mod} | {r['exclusive_ms_per_sec']:.3f} | "
+            f"{r['share_pct']:.2f}% | {r['measured_one_core_pct']:.3f}% | {r['max_exclusive_ms']:.3f} |"
+        )
+
+    md_lines += [
+        "",
+        "## Largest hitches",
+        "",
+        "| t (s) | Frametime | Class | GRSP | REDscript owner | CET exact | CET owner/target | Scheduler |",
+        "|---:|---:|---|---:|---|---:|---|---|",
+    ]
+    for r in hitches[:50]:
+        ro = (r.get("grsp_top_event_owner") or r.get("grsp_bucket_top_owner") or "—").replace("|", "\\|")
+        cm = (r.get("cet_exact_mod") or "—").replace("|", "\\|")
+        ct = (r.get("cet_exact_target") or "").replace("|", "\\|")
+        sched = (r.get("scheduler_owner") or "—").replace("|", "\\|")
+        if ct:
+            cm = f"{cm} / {ct}"
+        md_lines.append(
+            f"| {fnum(r.get('frame_start_ms'))/1000.0:.3f} | {fnum(r.get('capx_frametime_ms')):.2f} ms | "
+            f"{r.get('evidence_class','')} | {fnum(r.get('grsp_exclusive_ms')):.3f} ms | {ro} | "
+            f"{fnum(r.get('cet_exact_exclusive_ms')):.3f} ms | {cm} | {sched} |"
+        )
+
+    md_lines += [
+        "",
+        "## Files for deeper analysis",
+        "",
+        "- `GRSP_Combined_Frames.csv` — aligned frame-level evidence.",
+        "- `GRSP_Combined_Timeline.csv` — common 50 ms timeline.",
+        "- `GRSP_Combined_Hitches.csv` — all frames ≥33.3 ms.",
+        "- `GRSP_Analysis.json` — structured machine/AI-readable summary.",
+        "- `GRSP_Combined_Report.html` — interactive human-facing report.",
+        "",
+        f"Source: `{source_label}`",
+        "",
+    ]
+
+    md_path = out_dir / "GRSP_AI_Analysis.md"
+    md_path.write_text("\n".join(md_lines), encoding="utf-8")
+    return json_path, md_path
+
+
+def _open_output_folder(path: pathlib.Path) -> None:
+    """Best-effort reveal of the persistent output folder."""
+    try:
+        if os.name == "nt":
+            os.startfile(str(path))
+        elif sys.platform == "darwin":
+            import subprocess
+            subprocess.Popen(["open", str(path)])
+        else:
+            import subprocess
+            subprocess.Popen(["xdg-open", str(path)])
+    except Exception:
+        pass
+
+
 # ----------------------------- main ----------------------------------------
 
 def run(input_path: pathlib.Path, out_dir: pathlib.Path) -> dict[str, pathlib.Path]:
@@ -1021,6 +1282,9 @@ def run(input_path: pathlib.Path, out_dir: pathlib.Path) -> dict[str, pathlib.Pa
         hitches_path = out_dir / "GRSP_Combined_Hitches.csv"
         status_path = out_dir / "GRSP_Correlator_Status.txt"
         report_path = out_dir / "GRSP_Combined_Report.html"
+        analysis_json_path = out_dir / "GRSP_Analysis.json"
+        ai_md_path = out_dir / "GRSP_AI_Analysis.md"
+        package_path = out_dir / "GRSP_Analysis_Package.zip"
 
         frame_fields = [
             "capx_frame_index","grsp_frame_id","frame_start_ms","frame_end_ms","frame_start_unix_ms","frame_start_utc",
@@ -1040,6 +1304,9 @@ def run(input_path: pathlib.Path, out_dir: pathlib.Path) -> dict[str, pathlib.Pa
 
         source_label = str(input_path)
         report_path.write_text(report_html(grsp, cet, capx, alignment, frames, timeline, source_label), encoding="utf-8")
+        analysis_json_path, ai_md_path = write_analysis_exports(
+            out_dir, source_label, grsp, cet, capx, alignment, frames, timeline, hitches
+        )
 
         status = f"""{APP_NAME} v{VERSION}
 
@@ -1079,6 +1346,9 @@ OUTPUT
   {frames_path.name}
   {timeline_path.name}
   {hitches_path.name}
+  {analysis_json_path.name}
+  {ai_md_path.name}
+  {package_path.name}
 
 INTERPRETATION
   Evidence classes are synchronized profiling signals, not causal proof.
@@ -1086,12 +1356,25 @@ INTERPRETATION
   LARGELY_UNEXPLAINED means neither script profiler shows a large signal for that frame.
 """
         status_path.write_text(status, encoding="utf-8")
+
+        # Portable analysis package: everything needed for human review or AI upload.
+        with zipfile.ZipFile(package_path, "w", zipfile.ZIP_DEFLATED) as z:
+            for p in (
+                report_path, frames_path, timeline_path, hitches_path,
+                analysis_json_path, ai_md_path, status_path
+            ):
+                z.write(p, p.name)
+
         return {
             "report": report_path,
             "frames": frames_path,
             "timeline": timeline_path,
             "hitches": hitches_path,
+            "analysis_json": analysis_json_path,
+            "ai_markdown": ai_md_path,
+            "package": package_path,
             "status": status_path,
+            "output_dir": out_dir,
         }
     finally:
         inputs.cleanup()
@@ -1211,11 +1494,18 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print(f"{APP_NAME} v{VERSION}")
     print("Correlation complete.")
-    print(f"Report:   {result['report']}")
-    print(f"Frames:   {result['frames']}")
-    print(f"Timeline: {result['timeline']}")
-    print(f"Hitches:  {result['hitches']}")
-    print(f"Status:   {result['status']}")
+    print(f"Saved output folder: {result['output_dir']}")
+    print(f"Report:       {result['report']}")
+    print(f"AI Markdown:  {result['ai_markdown']}")
+    print(f"Analysis JSON:{result['analysis_json']}")
+    print(f"Package ZIP:  {result['package']}")
+    print(f"Frames:       {result['frames']}")
+    print(f"Timeline:     {result['timeline']}")
+    print(f"Hitches:      {result['hitches']}")
+    print(f"Status:       {result['status']}")
+
+    if interactive:
+        _open_output_folder(result["output_dir"])
 
     if ns.open_report:
         try:

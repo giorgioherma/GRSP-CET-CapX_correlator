@@ -56,5 +56,5 @@ jobs:
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GRSP-Correlator-0.1.1-Windows-x64
+          name: GRSP-Correlator-0.1.2-Windows-x64
           path: stage
